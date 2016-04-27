@@ -9,8 +9,8 @@ package com.clearstorydata.piper.core
 import org.scalatest.{FunSuite, Matchers}
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration._
 import scala.concurrent._
+import scala.concurrent.duration._
 import scala.util.Try
 
 class JobContainerSuite extends FunSuite with Matchers {
@@ -45,7 +45,7 @@ class JobContainerSuite extends FunSuite with Matchers {
       }
     }
 
-    // The type is worng, it should be FutureAction[String]
+    // The type is wrong, it should be FutureAction[String]
     val result: Future[String] = PiperJob() {
       context: JobContext => {
         val bbb: FutureAction[String] = FutureAction{"FutureAction"}
@@ -83,7 +83,29 @@ class JobContainerSuite extends FunSuite with Matchers {
 
   }
 
-  test("Simple Test") {
+
+  test("Nested tasking using Future") {
+    val p = Promise[Int]
+    p.completeWith {
+      val p = Promise[Int]
+      p.completeWith {
+        val p = Promise[Int]
+        p.completeWith {
+          Future {
+            1000
+          }
+        }
+        p.future.map(_ + 100)
+      }
+      p.future.map(_ + 10)
+    }
+
+    val f1 = p.future
+    val res1 = Await.result(f1, 20 seconds)
+    assert(1110 == res1)
+  }
+
+  test("Nested tasking using Piper") {
     val f1 =
       PiperJob() {
         context: JobContext =>
@@ -95,13 +117,15 @@ class JobContainerSuite extends FunSuite with Matchers {
               jobContext = context) { context: JobContext =>
               Future {
                 1000
-              }
-            }.map(_ + 100)
-          }.map(_ + 10)
+              }.map(_ + 100)
+            }.map(_ + 10)
+          }
       }
 
     val res1 = Await.result(f1, 20 seconds)
     assert(1110 == res1)
+    // wait a while for the actors to die
+    Thread.sleep(50)
     val r3 = Await.result(PiperContext.count, 10 seconds)
     assert(r3 == 0)
   }

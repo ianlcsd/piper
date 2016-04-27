@@ -32,7 +32,7 @@ object PiperJob {
   val promises = new ConcurrentHashMap[String, Promise[Any]]()
   val responseHandler = PiperContext.jobSystem.actorOf(Props(classOf[ResponseHandler]), "handler")
 
-  def compute[T](id: String, jobContext: JobContext, job: JobContext => Future[T]) = {
+  def submit[T](id: String, jobContext: JobContext, job: JobContext => Future[T]) = {
     implicit val sender: ActorRef = responseHandler
     responseHandler ! JobRequest(
       jobContext.parent.getOrElse(PiperContext.rootActor),
@@ -50,7 +50,7 @@ object PiperJob {
         override def apply(v1: String): Promise[Any] = Promise[Any]()
       }
     ).future.mapTo[T]
-    compute(id, jobContext, job)
+    submit(id, jobContext, job)
     future
   }
 }
